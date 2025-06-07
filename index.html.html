@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Dairy Tracker</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <style>
+        /* Custom styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent; /* Disable tap highlight on mobile */
+        }
+        /* Simple transition for page visibility */
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        /* Custom calendar styles */
+        .calendar-grid {
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+        .calendar-day {
+            position: relative;
+        }
+        .calendar-dot {
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="app" class="max-w-md mx-auto bg-white min-h-screen shadow-lg">
+        <!-- Header -->
+        <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-20">
+            <h1 class="text-xl font-bold text-center">Daily Dairy Tracker</h1>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="p-4 pb-20">
+
+            <!-- Setup Page -->
+            <div id="setup-page" class="page">
+                <div class="space-y-6">
+                    <h2 class="text-lg font-semibold text-center">Initial Setup</h2>
+                    <p class="text-sm text-gray-600 text-center">Please provide your Google API Credentials and Sheet ID to get started.</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label for="api-key" class="block text-sm font-medium text-gray-700">Google API Key</label>
+                            <input type="text" id="api-key" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="client-id" class="block text-sm font-medium text-gray-700">Google OAuth Client ID</label>
+                            <input type="text" id="client-id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="sheet-id" class="block text-sm font-medium text-gray-700">Google Sheet ID</label>
+                            <input type="text" id="sheet-id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="The long string from your sheet's URL">
+                        </div>
+                    </div>
+                    
+                    <button id="save-settings-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300">Save and Continue</button>
+                    
+                    <div class="text-xs text-gray-500 space-y-2">
+                        <p><i class="ph ph-info mr-1"></i> You can find instructions on creating these credentials in the Google Cloud Console documentation for the Google Sheets API.</p>
+                        <p><i class="ph ph-info mr-1"></i> Your credentials are saved only in your browser's local storage.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Auth/Login Page -->
+            <div id="auth-page" class="page text-center">
+                 <div class="space-y-4">
+                    <h2 class="text-lg font-semibold">Welcome!</h2>
+                    <p class="text-gray-600">Please sign in with your Google Account to access your dairy expense sheet.</p>
+                    <button id="authorize-button" class="bg-red-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-red-600 transition flex items-center justify-center mx-auto">
+                        <i class="ph ph-google-logo mr-2 text-xl"></i>
+                        Sign in with Google
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loader -->
+            <div id="loader" class="page text-center py-10">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="mt-4 text-gray-600">Loading your data...</p>
+            </div>
+            
+            <!-- Dashboard Page -->
+            <div id="dashboard-page" class="page space-y-6">
+                 <div class="grid grid-cols-1 gap-4">
+                    <div class="bg-blue-50 p-6 rounded-xl shadow-sm text-center">
+                        <p class="text-sm font-medium text-blue-800">Current Balance</p>
+                        <p id="current-balance" class="text-4xl font-bold text-blue-900 mt-1">₹0.00</p>
+                    </div>
+                     <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-green-50 p-4 rounded-xl shadow-sm text-center">
+                            <p class="text-xs font-medium text-green-800">Month's Recharges</p>
+                            <p id="month-recharges" class="text-xl font-bold text-green-900 mt-1">₹0.00</p>
+                        </div>
+                        <div class="bg-red-50 p-4 rounded-xl shadow-sm text-center">
+                            <p class="text-xs font-medium text-red-800">Month's Spending</p>
+                            <p id="month-spending" class="text-xl font-bold text-red-900 mt-1">₹0.00</p>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">Recent Transactions</h3>
+                    <div id="recent-transactions" class="space-y-3">
+                        <!-- Transactions will be loaded here -->
+                        <p class="text-gray-500 text-center py-4">No recent transactions.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Purchase Page -->
+            <div id="add-purchase-page" class="page space-y-6">
+                <h2 class="text-xl font-bold">Add Purchase</h2>
+                <div id="product-list" class="space-y-3">
+                    <!-- Products will be loaded here -->
+                </div>
+                <div class="sticky bottom-20 bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-lg border">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-semibold text-lg">Total:</span>
+                        <span id="purchase-total" class="font-bold text-2xl text-blue-600">₹0.00</span>
+                    </div>
+                    <button id="confirm-purchase-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400">
+                        Confirm Purchase
+                    </button>
+                </div>
+            </div>
+
+            <!-- Add Recharge Page -->
+            <div id="add-recharge-page" class="page space-y-4">
+                <h2 class="text-xl font-bold">Add Recharge</h2>
+                 <div>
+                    <label for="recharge-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                    <div class="relative mt-1 rounded-md shadow-sm">
+                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                            <span class="text-gray-500 sm:text-sm">₹</span>
+                        </div>
+                        <input type="number" id="recharge-amount" class="block w-full rounded-md border-gray-300 pl-7 pr-12 focus:border-blue-500 focus:ring-blue-500" placeholder="0.00">
+                    </div>
+                </div>
+                 <div>
+                    <label for="recharge-date" class="block text-sm font-medium text-gray-700">Date</label>
+                    <input type="date" id="recharge-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <button id="confirm-recharge-btn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition">
+                    Confirm Recharge
+                </button>
+            </div>
+
+            <!-- History Page -->
+            <div id="history-page" class="page space-y-4">
+                 <h2 class="text-xl font-bold">Full History</h2>
+                 <div id="full-history-list" class="space-y-3">
+                    <!-- Full history will be loaded here -->
+                 </div>
+            </div>
+
+            <!-- Calendar Page -->
+            <div id="calendar-page" class="page space-y-4">
+                <h2 class="text-xl font-bold">Spending Calendar</h2>
+                <div class="flex items-center justify-between">
+                    <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-200"><i class="ph ph-caret-left text-xl"></i></button>
+                    <h3 id="calendar-month-year" class="text-lg font-semibold"></h3>
+                    <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-200"><i class="ph ph-caret-right text-xl"></i></button>
+                </div>
+                <div class="grid calendar-grid gap-2 text-center text-xs font-bold text-gray-500">
+                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                </div>
+                <div id="calendar-grid" class="grid calendar-grid gap-1">
+                    <!-- Calendar days will be generated here -->
+                </div>
+            </div>
+
+             <!-- Edit Transaction Modal -->
+            <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm space-y-4">
+                    <h3 class="text-lg font-bold">Edit Transaction</h3>
+                    <div id="edit-modal-content"></div>
+                    <div class="flex gap-2">
+                         <button id="cancel-edit-btn" class="w-full bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Cancel</button>
+                        <button id="save-edit-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Save</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 flex justify-around p-2 z-20">
+            <button data-page="dashboard-page" class="nav-btn flex flex-col items-center text-gray-500 p-2 rounded-lg">
+                <i class="ph ph-house text-2xl"></i><span class="text-xs">Dashboard</span>
+            </button>
+             <button data-page="history-page" class="nav-btn flex flex-col items-center text-gray-500 p-2 rounded-lg">
+                <i class="ph ph-list-bullets text-2xl"></i><span class="text-xs">History</span>
+            </button>
+            <button data-page="calendar-page" class="nav-btn flex flex-col items-center text-gray-500 p-2 rounded-lg">
+                <i class="ph ph-calendar text-2xl"></i><span class="text-xs">Calendar</span>
+            </button>
+             <button id="add-purchase-nav-btn" data-page="add-purchase-page" class="nav-btn flex flex-col items-center text-gray-500 p-2 rounded-lg">
+                <i class="ph ph-shopping-cart text-2xl"></i><span class="text-xs">Purchase</span>
+            </button>
+             <button data-page="add-recharge-page" class="nav-btn flex flex-col items-center text-gray-500 p-2 rounded-lg">
+                <i class="ph ph-wallet text-2xl"></i><span class="text-xs">Recharge</span>
+            </button>
+        </nav>
+    </div>
+
+    <script async defer src="https://apis.google.com/js/api.js"></script>
+    <script type="module">
+        // --- CONFIGURATION & STATE ---
+        let gapi;
+        let tokenClient;
+        let google_api_key = '';
+        let google_client_id = '';
+        let spreadsheet_id = '';
+
+        const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+        const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+
+        let products = [];
+        let transactions = [];
+        let recharges = [];
+        let calendarDate = new Date();
+
+        // --- DOM ELEMENTS ---
+        const pages = document.querySelectorAll('.page');
+        const navBtns = document.querySelectorAll('.nav-btn');
+        const setupPage = document.getElementById('setup-page');
+        const authPage = document.getElementById('auth-page');
+        const loader = document.getElementById('loader');
+
+        // --- INITIALIZATION ---
+        window.onload = function() {
+            loadSettings();
+            if (!google_api_key || !google_client_id || !spreadsheet_id) {
+                showPage('setup-page');
+            } else {
+                gapiLoaded();
+            }
+
+            document.getElementById('save-settings-btn').addEventListener('click', saveSettingsAndInit);
+        };
+
+        function saveSettingsAndInit() {
+            google_api_key = document.getElementById('api-key').value.trim();
+            google_client_id = document.getElementById('client-id').value.trim();
+            spreadsheet_id = document.getElementById('sheet-id').value.trim();
+
+            if (!google_api_key || !google_client_id || !spreadsheet_id) {
+                alert('All fields are required.');
+                return;
+            }
+
+            localStorage.setItem('dairyTrackerConfig', JSON.stringify({ google_api_key, google_client_id, spreadsheet_id }));
+            location.reload(); // Reload to initialize with new settings
+        }
+
+        function loadSettings() {
+            const config = JSON.parse(localStorage.getItem('dairyTrackerConfig'));
+            if (config) {
+                google_api_key = config.google_api_key;
+                google_client_id = config.google_client_id;
+                spreadsheet_id = config.spreadsheet_id;
+            }
+        }
+        
+        // --- GOOGLE API & AUTH ---
+        function gapiLoaded() {
+            gapi = window.gapi;
+            gapi.load('client', initializeGapiClient);
+        }
+
+        async function initializeGapiClient() {
+            await gapi.client.init({
+                apiKey: google_api_key,
+                discoveryDocs: [DISCOVERY_DOC],
+            });
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: google_client_id,
+                scope: SCOPES,
+                callback: handleTokenResponse,
+            });
+            
+            // Initial check if we have a token from a previous session is implicitly handled
+            // by the token client. If a user is signed in, API calls might just work.
+            // If not, we prompt them.
+            showPage('auth-page');
+        }
+
+        function handleTokenResponse(resp) {
+            if (resp.error) {
+                console.error(resp.error);
+                alert('Authentication failed.');
+                return;
+            }
+            gapi.client.setToken(resp);
+            fetchAllData();
+        }
+
+        document.getElementById('authorize-button').addEventListener('click', () => {
+             tokenClient.requestAccessToken({ prompt: 'consent' });
+        });
+
+        // --- DATA FETCHING & PROCESSING ---
+        async function fetchAllData() {
+            showPage('loader');
+            try {
+                const productRange = 'Products!A2:D';
+                const transactionRange = 'Transactions!A2:F';
+                const rechargeRange = 'Recharges!A2:C';
+
+                const [productData, transactionData, rechargeData] = await Promise.all([
+                    gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: spreadsheet_id, range: productRange }),
+                    gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: spreadsheet_id, range: transactionRange }),
+                    gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: spreadsheet_id, range: rechargeRange }),
+                ]);
+
+                // Process products
+                products = (productData.result.values || []).map(row => ({
+                    id: row[0], name: row[1], price: parseFloat(row[2]), unit: row[3]
+                }));
+
+                // Process transactions
+                transactions = (transactionData.result.values || []).map((row, index) => ({
+                    rowNumber: index + 2, // Sheet row number for edits/deletes
+                    id: row[0], date: row[1], productId: row[2], quantity: parseInt(row[3]), priceAtTime: parseFloat(row[4]), total: parseFloat(row[5])
+                })).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+                // Process recharges
+                recharges = (rechargeData.result.values || []).map((row, index) => ({
+                    rowNumber: index + 2,
+                    id: row[0], date: row[1], amount: parseFloat(row[2])
+                })).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+                updateUI();
+                showPage('dashboard-page');
+
+            } catch (err) {
+                console.error('Error fetching data:', err);
+                alert(`Error: ${err.result?.error?.message || 'Could not fetch data from Google Sheet. Check Sheet ID and permissions.'}`);
+                // Potentially sign out or show auth page again
+                showPage('auth-page');
+            }
+        }
+
+        // --- UI RENDERING ---
+        function updateUI() {
+            renderDashboard();
+            renderAddPurchase();
+            renderHistory();
+            renderCalendar();
+            setupNav();
+        }
+
+        function renderDashboard() {
+            const totalRecharge = recharges.reduce((sum, r) => sum + r.amount, 0);
+            const totalSpending = transactions.reduce((sum, t) => sum + t.total, 0);
+            const balance = totalRecharge - totalSpending;
+
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            
+            const monthRecharges = recharges
+                .filter(r => {
+                    const d = new Date(r.date);
+                    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                })
+                .reduce((sum, r) => sum + r.amount, 0);
+
+            const monthSpending = transactions
+                .filter(t => {
+                    const d = new Date(t.date);
+                    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                })
+                .reduce((sum, t) => sum + t.total, 0);
+
+            document.getElementById('current-balance').textContent = `₹${balance.toFixed(2)}`;
+            document.getElementById('month-recharges').textContent = `₹${monthRecharges.toFixed(2)}`;
+            document.getElementById('month-spending').textContent = `₹${monthSpending.toFixed(2)}`;
+            
+            // Recent transactions
+            const recentContainer = document.getElementById('recent-transactions');
+            const combinedHistory = [...transactions, ...recharges].sort((a,b) => new Date(b.date) - new Date(a.date));
+            recentContainer.innerHTML = '';
+            if (combinedHistory.length > 0) {
+                combinedHistory.slice(0, 5).forEach(item => {
+                    recentContainer.appendChild(createHistoryItem(item));
+                });
+            } else {
+                recentContainer.innerHTML = `<p class="text-gray-500 text-center py-4">No recent transactions.</p>`;
+            }
+        }
+
+        function renderAddPurchase() {
+            const productList = document.getElementById('product-list');
+            productList.innerHTML = '';
+            products.forEach(p => {
+                const productEl = document.createElement('div');
+                productEl.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg border';
+                productEl.innerHTML = `
+                    <div>
+                        <p class="font-semibold">${p.name} <span class="text-xs text-gray-500">${p.unit}</span></p>
+                        <p class="text-sm text-blue-600 font-medium">₹${p.price.toFixed(2)}</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button class="quantity-btn bg-gray-200 rounded-full w-8 h-8 text-lg font-bold hover:bg-gray-300" data-product-id="${p.id}" data-action="decrease">-</button>
+                        <span class="font-bold text-lg w-6 text-center" id="quantity-${p.id}">0</span>
+                        <button class="quantity-btn bg-gray-200 rounded-full w-8 h-8 text-lg font-bold hover:bg-gray-300" data-product-id="${p.id}" data-action="increase">+</button>
+                    </div>
+                `;
+                productList.appendChild(productEl);
+            });
+            updatePurchaseTotal();
+        }
+
+        function renderHistory() {
+            const historyContainer = document.getElementById('full-history-list');
+            historyContainer.innerHTML = '';
+            const combinedHistory = [...transactions, ...recharges].sort((a,b) => new Date(b.date) - new Date(a.date));
+            if (combinedHistory.length > 0) {
+                 combinedHistory.forEach(item => {
+                    historyContainer.appendChild(createHistoryItem(item));
+                });
+            } else {
+                 historyContainer.innerHTML = `<p class="text-gray-500 text-center py-4">Your history is empty.</p>`;
+            }
+        }
+
+        function createHistoryItem(item) {
+            const itemEl = document.createElement('div');
+            itemEl.className = 'p-3 bg-gray-50 rounded-lg border flex justify-between items-center';
+            const isPurchase = item.hasOwnProperty('productId');
+            const date = new Date(item.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric'});
+
+            let details = '';
+            if (isPurchase) {
+                const product = products.find(p => p.id === item.productId);
+                details = `
+                    <div>
+                        <p class="font-semibold">${product?.name || 'Unknown Item'} x ${item.quantity}</p>
+                        <p class="text-xs text-gray-500">${date}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-red-600">- ₹${item.total.toFixed(2)}</p>
+                    </div>`;
+            } else { // Recharge
+                details = `
+                    <div>
+                        <p class="font-semibold">Wallet Recharge</p>
+                        <p class="text-xs text-gray-500">${date}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-green-600">+ ₹${item.amount.toFixed(2)}</p>
+                    </div>`;
+            }
+            
+            const actions = `
+                <div class="flex gap-2 ml-4">
+                    <button class="edit-btn p-2 hover:bg-gray-200 rounded-full" data-id="${item.id}" data-type="${isPurchase ? 'purchase' : 'recharge'}"><i class="ph ph-pencil-simple text-lg text-gray-600"></i></button>
+                    <button class="delete-btn p-2 hover:bg-gray-200 rounded-full" data-row="${item.rowNumber}" data-type="${isPurchase ? 'purchase' : 'recharge'}"><i class="ph ph-trash text-lg text-red-500"></i></button>
+                </div>`;
+
+            itemEl.innerHTML = `<div class="flex-grow flex justify-between items-center">${details}</div> ${actions}`;
+            return itemEl;
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            const monthYearEl = document.getElementById('calendar-month-year');
+            grid.innerHTML = '';
+
+            const year = calendarDate.getFullYear();
+            const month = calendarDate.getMonth();
+
+            monthYearEl.textContent = calendarDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+            
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // Daily totals
+            const dailyTotals = {};
+            transactions.forEach(t => {
+                const d = new Date(t.date);
+                if(d.getFullYear() === year && d.getMonth() === month) {
+                    const dayKey = d.getDate();
+                    dailyTotals[dayKey] = (dailyTotals[dayKey] || 0) + t.total;
+                }
+            });
+
+            // Blank days for grid alignment
+            for(let i=0; i < firstDayOfMonth; i++) {
+                grid.innerHTML += '<div></div>';
+            }
+
+            // Fill days
+            for(let i=1; i <= daysInMonth; i++) {
+                const dayEl = document.createElement('div');
+                dayEl.className = 'calendar-day h-12 flex items-center justify-center rounded-lg border';
+                const today = new Date();
+                if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+                    dayEl.classList.add('bg-blue-600', 'text-white', 'font-bold');
+                } else {
+                    dayEl.classList.add('bg-gray-50');
+                }
+                dayEl.textContent = i;
+
+                if(dailyTotals[i]) {
+                    dayEl.innerHTML += `<div class="calendar-dot bg-red-500" title="Spent: ₹${dailyTotals[i].toFixed(2)}"></div>`;
+                }
+
+                grid.appendChild(dayEl);
+            }
+        }
+        
+        // --- EVENT HANDLERS ---
+        document.addEventListener('click', e => {
+            // Navigation
+            const navBtn = e.target.closest('.nav-btn');
+            if (navBtn) {
+                const pageId = navBtn.dataset.page;
+                showPage(pageId);
+                return;
+            }
+
+            // Quantity buttons
+            const quantityBtn = e.target.closest('.quantity-btn');
+            if(quantityBtn) {
+                const productId = quantityBtn.dataset.productId;
+                const action = quantityBtn.dataset.action;
+                const quantityEl = document.getElementById(`quantity-${productId}`);
+                let currentQuantity = parseInt(quantityEl.textContent);
+
+                if (action === 'increase') {
+                    currentQuantity++;
+                } else if (action === 'decrease' && currentQuantity > 0) {
+                    currentQuantity--;
+                }
+                quantityEl.textContent = currentQuantity;
+                updatePurchaseTotal();
+                return;
+            }
+            
+            // Edit button
+            const editBtn = e.target.closest('.edit-btn');
+            if (editBtn) {
+                const id = editBtn.dataset.id;
+                const type = editBtn.dataset.type;
+                openEditModal(id, type);
+                return;
+            }
+            
+            // Delete button
+            const deleteBtn = e.target.closest('.delete-btn');
+            if (deleteBtn) {
+                const row = parseInt(deleteBtn.dataset.row);
+                const type = deleteBtn.dataset.type;
+                if (confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
+                    deleteRow(row, type);
+                }
+                return;
+            }
+        });
+        
+        document.getElementById('prev-month-btn').addEventListener('click', () => {
+            calendarDate.setMonth(calendarDate.getMonth() - 1);
+            renderCalendar();
+        });
+        
+        document.getElementById('next-month-btn').addEventListener('click', () => {
+            calendarDate.setMonth(calendarDate.getMonth() + 1);
+            renderCalendar();
+        });
+
+        document.getElementById('confirm-purchase-btn').addEventListener('click', handleConfirmPurchase);
+        document.getElementById('confirm-recharge-btn').addEventListener('click', handleConfirmRecharge);
+        document.getElementById('recharge-date').valueAsDate = new Date(); // Set default recharge date to today
+
+        // --- CORE LOGIC FUNCTIONS ---
+        async function handleConfirmPurchase() {
+            const cart = [];
+            products.forEach(p => {
+                const quantity = parseInt(document.getElementById(`quantity-${p.id}`).textContent);
+                if (quantity > 0) {
+                    cart.push({ ...p, quantity });
+                }
+            });
+
+            if (cart.length === 0) return;
+            
+            this.disabled = true;
+            this.textContent = 'Saving...';
+
+            const transactionId = `t${Date.now()}`;
+            const purchaseDate = new Date().toISOString();
+            
+            const values = cart.map(item => [
+                transactionId,
+                purchaseDate,
+                item.id,
+                item.quantity,
+                item.price,
+                item.quantity * item.price
+            ]);
+
+            try {
+                await gapi.client.sheets.spreadsheets.values.append({
+                    spreadsheetId: spreadsheet_id,
+                    range: 'Transactions!A:F',
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values }
+                });
+                alert('Purchase recorded successfully!');
+                await fetchAllData();
+                showPage('dashboard-page');
+            } catch (err) {
+                 console.error('Error recording purchase:', err);
+                 alert(`Error: ${err.result?.error?.message || 'Could not save purchase.'}`);
+            } finally {
+                 this.disabled = false;
+                 this.textContent = 'Confirm Purchase';
+            }
+        }
+
+        async function handleConfirmRecharge() {
+            const amountInput = document.getElementById('recharge-amount');
+            const dateInput = document.getElementById('recharge-date');
+            const amount = parseFloat(amountInput.value);
+            
+            if (!amount || amount <= 0 || !dateInput.value) {
+                alert('Please enter a valid amount and date.');
+                return;
+            }
+
+            this.disabled = true;
+            this.textContent = 'Saving...';
+            
+            const rechargeId = `r${Date.now()}`;
+            const rechargeDate = new Date(dateInput.value).toISOString();
+
+            const values = [[rechargeId, rechargeDate, amount]];
+
+            try {
+                await gapi.client.sheets.spreadsheets.values.append({
+                    spreadsheetId: spreadsheet_id,
+                    range: 'Recharges!A:C',
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values }
+                });
+                alert('Recharge added successfully!');
+                amountInput.value = '';
+                await fetchAllData();
+                showPage('dashboard-page');
+            } catch (err) {
+                 console.error('Error adding recharge:', err);
+                 alert(`Error: ${err.result?.error?.message || 'Could not save recharge.'}`);
+            } finally {
+                 this.disabled = false;
+                 this.textContent = 'Confirm Recharge';
+            }
+        }
+
+        async function deleteRow(rowNumber, type) {
+            const sheetName = type === 'purchase' ? 'Transactions' : 'Recharges';
+            
+            showPage('loader');
+            try {
+                const sheetId = await getSheetIdByName(sheetName);
+                if (sheetId === null) throw new Error(`Sheet "${sheetName}" not found.`);
+
+                await gapi.client.sheets.spreadsheets.batchUpdate({
+                    spreadsheetId: spreadsheet_id,
+                    resource: {
+                        requests: [{
+                            deleteDimension: {
+                                range: {
+                                    sheetId: sheetId,
+                                    dimension: 'ROWS',
+                                    startIndex: rowNumber - 1,
+                                    endIndex: rowNumber
+                                }
+                            }
+                        }]
+                    }
+                });
+                await fetchAllData();
+                showPage('history-page');
+            } catch (err) {
+                console.error('Error deleting row:', err);
+                alert(`Error: ${err.result?.error?.message || 'Could not delete item.'}`);
+                updateUI(); // Go back to previous state on error
+            }
+        }
+
+        async function getSheetIdByName(sheetName) {
+            const response = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: spreadsheet_id });
+            const sheet = response.result.sheets.find(s => s.properties.title === sheetName);
+            return sheet ? sheet.properties.sheetId : null;
+        }
+        
+        // --- HELPER FUNCTIONS ---
+        function showPage(pageId) {
+            pages.forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+
+            navBtns.forEach(btn => {
+                if (btn.dataset.page === pageId) {
+                    btn.classList.add('text-blue-600');
+                    btn.classList.remove('text-gray-500');
+                } else {
+                    btn.classList.add('text-gray-500');
+                    btn.classList.remove('text-blue-600');
+                }
+            });
+        }
+        
+        function setupNav() {
+            navBtns.forEach(btn => {
+                // Remove existing listeners to prevent duplicates
+                btn.replaceWith(btn.cloneNode(true));
+            });
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const pageId = btn.dataset.page;
+                    showPage(pageId);
+                });
+            });
+        }
+
+        function updatePurchaseTotal() {
+            let total = 0;
+            products.forEach(p => {
+                const quantityEl = document.getElementById(`quantity-${p.id}`);
+                if (quantityEl) {
+                    const quantity = parseInt(quantityEl.textContent);
+                    total += quantity * p.price;
+                }
+            });
+            document.getElementById('purchase-total').textContent = `₹${total.toFixed(2)}`;
+            const confirmBtn = document.getElementById('confirm-purchase-btn');
+            confirmBtn.disabled = total === 0;
+        }
+        
+        function openEditModal(id, type) {
+            const modal = document.getElementById('edit-modal');
+            const content = document.getElementById('edit-modal-content');
+            content.innerHTML = '';
+            
+            if (type === 'recharge') {
+                const recharge = recharges.find(r => r.id === id);
+                content.innerHTML = `
+                    <p>Editing Recharge from ${new Date(recharge.date).toLocaleDateString()}</p>
+                    <label for="edit-recharge-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                    <input type="number" id="edit-recharge-amount" class="mt-1 block w-full rounded-md border-gray-300" value="${recharge.amount.toFixed(2)}">
+                `;
+                document.getElementById('save-edit-btn').onclick = () => saveEdit(id, type);
+            } else {
+                alert("Editing individual purchases is not yet supported. Please delete and re-add the transaction.");
+                return;
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        document.getElementById('cancel-edit-btn').addEventListener('click', () => {
+            document.getElementById('edit-modal').classList.add('hidden');
+            document.getElementById('edit-modal').classList.remove('flex');
+        });
+
+        async function saveEdit(id, type) {
+            showPage('loader');
+            const modal = document.getElementById('edit-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            
+            if (type === 'recharge') {
+                const recharge = recharges.find(r => r.id === id);
+                const newAmount = parseFloat(document.getElementById('edit-recharge-amount').value);
+                if (isNaN(newAmount) || newAmount < 0) {
+                    alert('Invalid amount');
+                    updateUI();
+                    return;
+                }
+
+                try {
+                    await gapi.client.sheets.spreadsheets.values.update({
+                        spreadsheetId: spreadsheet_id,
+                        range: `Recharges!C${recharge.rowNumber}`,
+                        valueInputOption: 'USER_ENTERED',
+                        resource: { values: [[newAmount]] }
+                    });
+                    await fetchAllData();
+                    showPage('history-page');
+                } catch(err) {
+                    console.error("Error updating recharge:", err);
+                    alert("Could not save changes.");
+                    updateUI();
+                }
+            }
+        }
+
+    </script>
+</body>
+</html>
