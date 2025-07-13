@@ -1,4 +1,4 @@
 # daily-dairy-tracker
- Building a daily dairy expense tracker using Gemini - no code
+ Building a daily dairy expense tracker using Gemini X Bolt X Supabase x Netlify
 
 
